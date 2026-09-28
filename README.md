@@ -30,6 +30,7 @@ npm install
 cp .env.example .env.local
 npm run db:migrate
 npm run db:seed
+npm run db:check
 npm run dev
 ```
 
@@ -70,6 +71,8 @@ npm run db:seed
 The seed is safe to rerun: room names and logical room/time slots use database uniqueness constraints to avoid duplicates. Seeded timestamps are created from the local runtime timezone and displayed using the browser's locale.
 
 The application uses ordinary PostgreSQL connections, so changing from Neon to another PostgreSQL provider only requires changing `DATABASE_URL`.
+
+`npm run db:check` uses the configured runtime connection to verify that the Better Auth tables and reservation tables exist and that the runtime role has the required table privileges. It never prints credentials.
 
 ## API
 

@@ -10,6 +10,7 @@ import {
   listUserReservations,
   ReservationConflictError,
   SlotNotFoundError,
+  SlotUnavailableError,
 } from "@/server/services/reservations";
 
 const databaseAvailable = Boolean(process.env.DATABASE_URL || process.env.TEST_DATABASE_URL);
@@ -94,6 +95,33 @@ describe.skipIf(!databaseAvailable)("reservations integration", () => {
     await expect(
       createReservation(db, userAId, "123e4567-e89b-42d3-a456-426614174000"),
     ).rejects.toBeInstanceOf(SlotNotFoundError);
+  });
+
+  it("rejects a second submission by the same user and rejects past slots", async () => {
+    await createReservation(db, userAId, testSlotId);
+    await expect(createReservation(db, userAId, testSlotId)).rejects.toBeInstanceOf(ReservationConflictError);
+
+    const pastSlot = await db
+      .insert(slots)
+      .values({
+        roomId: testRoomId,
+        startsAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() - 60 * 60 * 1000),
+      })
+      .returning({ id: slots.id });
+
+    await expect(createReservation(db, userBId, pastSlot[0].id)).rejects.toBeInstanceOf(SlotUnavailableError);
+    await db.delete(slots).where(eq(slots.id, pastSlot[0].id));
+  });
+
+  it("enforces the slot time-order check in PostgreSQL", async () => {
+    await expect(
+      db.insert(slots).values({
+        roomId: testRoomId,
+        startsAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
+        endsAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
+      }),
+    ).rejects.toThrow();
   });
 
   it("allows only one concurrent reservation for a slot", async () => {
